@@ -1,0 +1,15 @@
+[package]
+name = "dolores"
+version = "0.1.0"
+authors = ["Łukasz Niemier <lukasz@niemier.pl>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.dev]
+split-debuginfo = "unpacked"
+
+[dependencies]
+nix = "0.20.0"
+anyhow = "1.0"
+structopt = "0.3.21"
