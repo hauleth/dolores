@@ -12,7 +12,7 @@ First we need to run our master server that will proxy all requests to the
 separate applications:
 
 ```sh
-sudo systemctl start dolores
+sudo dolores serve
 ```
 
 Now, as **unprivileged user** we can run:
