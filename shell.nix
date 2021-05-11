@@ -8,6 +8,7 @@ mkShell {
     cargo
     cargo-bloat
     cargo-outdated
+    clippy
     rustc
     libiconv
     rustfmt

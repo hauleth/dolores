@@ -51,7 +51,6 @@ enum Command {
 
 impl Command {
     fn run(self, path: &std::path::Path, logger: &slog::Logger) -> anyhow::Result<()> {
-        let path = path.as_ref();
         match self {
             Command::Run(cmd) => cmd.run(path, logger),
             Command::Serve(cmd) => cmd.run(path, logger),

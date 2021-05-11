@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs::Permissions;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -34,23 +36,25 @@ impl Client {
         let mut rx = std::env::temp_dir();
         rx.push(format!("dolores-{:x}-client.sock", id));
         let socket = UnixDatagram::bind(rx.as_path())?;
+        let perms = Permissions::from_mode(0o777);
+        std::fs::set_permissions(&rx, perms)?;
         match socket.connect(path) {
             Ok(_) => Ok(Client { socket }),
             Err(err) => {
                 std::fs::remove_file(rx.as_path())?;
-                Err(err.into())
+                Err(err)
             }
         }
     }
 
-    pub async fn send<'a>(&self, cmd: Command<'a>) -> io::Result<()> {
+    pub async fn send(&self, cmd: Command<'_>) -> io::Result<()> {
         self.socket
             .send(&bincode::serialize(&cmd).unwrap())
             .await
             .map(|_| ())
     }
 
-    pub async fn call<'a>(&self, cmd: Command<'a>) -> io::Result<String> {
+    pub async fn call(&self, cmd: Command<'_>) -> io::Result<String> {
         self.send(cmd).await?;
         let mut buf = [0; 1024];
         let len = tokio::time::timeout(
@@ -91,7 +95,9 @@ pub struct Registry {
 
 impl Registry {
     pub fn open<P: AsRef<Path>>(path: P, domain: &str) -> io::Result<Self> {
-        let socket = UnixDatagram::bind(path.as_ref())?;
+        let socket = UnixDatagram::bind(&path)?;
+        let perms = Permissions::from_mode(0o777);
+        std::fs::set_permissions(&path, perms)?;
 
         Ok(Registry {
             domain: domain.into(),
@@ -116,9 +122,9 @@ impl Registry {
         .await
     }
 
-    async fn handle_command<'a>(
+    async fn handle_command(
         services: RegistryStore,
-        command: Command<'a>,
+        command: Command<'_>,
         logger: &slog::Logger,
         sock: &UnixDatagram,
         to: &std::path::Path,

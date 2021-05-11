@@ -37,10 +37,8 @@ where
     }
 }
 
-impl Into<Vec<String>> for Domain<'_> {
-    fn into(self) -> Vec<String> {
-        let domain = &self.0;
-
+impl From<Domain<'_>> for Vec<String> {
+    fn from(Domain(ref domain): Domain) -> Vec<String> {
         vec![domain.to_string(), format!("*.{}", domain)]
     }
 }

@@ -15,7 +15,7 @@ pub(crate) struct Command {
     #[structopt(short, long, default_value = "localhost")]
     domain: String,
 
-    #[structopt(short, long, default_value = "[::1]:443")]
+    #[structopt(short, long, default_value = "0.0.0.0:443")]
     listen: std::net::SocketAddr,
 
     #[structopt(long, requires("ca-key"))]

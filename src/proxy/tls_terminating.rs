@@ -10,7 +10,7 @@ pub struct TlsTerminating {
 }
 
 impl TlsTerminating {
-    pub fn self_signed<'a>(domain: super::Domain<'a>) -> Self {
+    pub fn self_signed(domain: super::Domain) -> Self {
         let cert = rcgen::generate_simple_self_signed(domain).unwrap();
         let mut config = rustls::ServerConfig::new(Arc::new(rustls::NoClientAuth));
 
@@ -86,7 +86,7 @@ async fn copy(
         }
         Err(err) => {
             error!(logger, "Error {:?}", err);
-            Err(err.into())
+            Err(err)
         }
     }
 }

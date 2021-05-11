@@ -78,36 +78,41 @@ impl Command {
                     .build()?;
                 let logger = logger.new(o!["child" => child.as_raw()]);
 
-                runtime.block_on(async {
-                    use crate::registry;
-                    let client = registry::Client::open(path)?;
-                    let mut watcher =
-                        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::child())?;
+                runtime
+                    .block_on(async {
+                        use crate::registry;
+                        let client = registry::Client::open(path)?;
+                        let mut watcher =
+                            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::child())?;
 
-                    client
-                        .send(registry::Command::Register {
-                            name: name.into(),
-                            addr,
-                            proxy: self.proxy,
-                        })
-                        .await?;
+                        client
+                            .send(registry::Command::Register {
+                                name: name.into(),
+                                addr,
+                                proxy: self.proxy,
+                            })
+                            .await?;
 
-                    debug!(logger, "Registered {}", addr);
-                    loop {
-                        tokio::select! {
-                            _ = tokio::signal::ctrl_c() =>
-                                nix::sys::signal::kill(child, nix::sys::signal::SIGINT)?,
-                            _ = watcher.recv() => break,
+                        debug!(logger, "Registered {}", addr);
+                        loop {
+                            tokio::select! {
+                                _ = tokio::signal::ctrl_c() =>
+                                    nix::sys::signal::kill(child, nix::sys::signal::SIGINT)?,
+                                _ = watcher.recv() => break,
+                            }
                         }
-                    }
-                    debug!(logger, "Shutting down");
+                        debug!(logger, "Shutting down");
 
-                    client
-                        .send(registry::Command::Deregister { name: name.into() })
-                        .await?;
+                        client
+                            .send(registry::Command::Deregister { name: name.into() })
+                            .await?;
 
-                    Ok(())
-                })
+                        Ok(())
+                    })
+                    .or_else(|err| {
+                        nix::sys::signal::kill(child, nix::sys::signal::SIGTERM)?;
+                        Err(err)
+                    })
             }
         }
     }
