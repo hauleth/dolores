@@ -48,12 +48,11 @@ fn open_socket() -> io::Result<net::SocketAddr> {
 
 impl Command {
     pub(crate) fn run(self, path: &std::path::Path, logger: &slog::Logger) -> anyhow::Result<()> {
-        let parent = Pid::this();
         let name = self.name.as_ref().unwrap_or(&self.prog_name);
         let logger = logger.new(o![
             "command" => "run",
             "name" => name.to_owned(),
-            "pid" => parent.as_raw(),
+            "pid" => Pid::this().as_raw(),
         ]);
 
         debug!(logger, "Starting");
@@ -61,54 +60,54 @@ impl Command {
         let addr = open_socket()?;
 
         match unsafe { fork() }? {
-            ForkResult::Parent { .. } => {
+            ForkResult::Child => {
                 let error = process::Command::new(&self.prog_name)
                     .args(&self.prog_args)
                     // Use systemd-like interface to pass the sockets to the new process
                     .env("LISTEN_FDS", "1")
-                    .env("LISTEN_PID", parent.to_string())
+                    .env("LISTEN_PID", Pid::this().to_string())
                     .env("LISTEN_FDNAMES", "http")
                     .exec();
 
                 // If we reach that, then `exec` above failed, so we just return error directly
                 Err(error.into())
             }
-            ForkResult::Child => {
+            ForkResult::Parent { child, .. } => {
                 let runtime = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()?;
-                let logger = logger.new(o![
-                    "pid" => Pid::this().as_raw(),
-                    "parent" => parent.as_raw()
-                ]);
+                let logger = logger.new(o!["child" => child.as_raw()]);
 
-                runtime
-                    .block_on(async {
-                        use crate::registry;
-                        let client = registry::Client::open(path)?;
+                runtime.block_on(async {
+                    use crate::registry;
+                    let client = registry::Client::open(path)?;
+                    let mut watcher =
+                        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::child())?;
 
-                        client
-                            .send(registry::Command::Register {
-                                name: name.into(),
-                                addr,
-                                proxy: self.proxy,
-                            })
-                            .await?;
+                    client
+                        .send(registry::Command::Register {
+                            name: name.into(),
+                            addr,
+                            proxy: self.proxy,
+                        })
+                        .await?;
 
-                        debug!(logger, "Registered {}", addr);
-                        tokio::signal::ctrl_c().await?;
-                        debug!(logger, "Shutting down");
+                    debug!(logger, "Registered {}", addr);
+                    loop {
+                        tokio::select! {
+                            _ = tokio::signal::ctrl_c() =>
+                                nix::sys::signal::kill(child, nix::sys::signal::SIGINT)?,
+                            _ = watcher.recv() => break,
+                        }
+                    }
+                    debug!(logger, "Shutting down");
 
-                        client
-                            .send(registry::Command::Deregister { name: name.into() })
-                            .await?;
+                    client
+                        .send(registry::Command::Deregister { name: name.into() })
+                        .await?;
 
-                        Ok(())
-                    })
-                    .or_else(|error| {
-                        nix::sys::signal::kill(parent, nix::sys::signal::SIGTERM)?;
-                        Err(error)
-                    })
+                    Ok(())
+                })
             }
         }
     }
