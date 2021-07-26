@@ -47,6 +47,7 @@ Now you should be able to visit your application on <https://foo.localhost>.
 - [x] Listen on HTTPS requests and dispatch requests to given application
 - [x] Passthrough proxy
 - [x] TLS terminating proxy
+- [ ] Socket activation on macOS and systemd-enabled Linux distributions
 - [ ] On-the-fly generation of TLS certificates (partially supported, only
   self-signed certs are supported for now)
 - [ ] Registration of external ports

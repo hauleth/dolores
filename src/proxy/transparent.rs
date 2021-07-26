@@ -13,9 +13,8 @@ impl super::Proxy for Transparent {
         &self,
         mut up: Self::Up,
         mut down: Self::Down,
-        logger: &slog::Logger,
     ) -> io::Result<()> {
-        debug!(logger, "Proxy started");
+        tracing::debug!("Proxy started");
 
         let (mut ru, mut wu) = up.split();
         let (mut rd, mut wd) = down.split();

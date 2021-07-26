@@ -1,8 +1,5 @@
 use structopt::StructOpt;
-
-use std::sync::Mutex;
-
-use slog::Drain;
+use color_eyre::eyre::Result;
 
 mod run;
 mod serve;
@@ -11,7 +8,7 @@ mod status;
 #[derive(structopt::StructOpt, Debug)]
 pub struct App {
     #[structopt(short, long)]
-    debug: bool,
+    pub debug: bool,
 
     #[structopt(subcommand)]
     command: Command,
@@ -25,20 +22,12 @@ pub struct App {
 }
 
 impl App {
-    pub fn run() -> anyhow::Result<()> {
-        let opts = Self::from_args();
-        println!("{:?}", opts);
+    pub fn new() -> Self { Self::from_args() }
 
-        let drain = slog_term::term_full();
-        let drain = Mutex::new(drain);
-        // let drain = if opts.debug {
-        //     slog::LevelFilter::new(drain, slog::Level::Debug)
-        // } else {
-        //     slog::LevelFilter::new(drain, slog::Level::Info)
-        // };
-        let root = slog::Logger::root(drain.fuse(), o! {});
+    pub fn run(self) -> Result<()> {
+        tracing::debug!(?self);
 
-        opts.command.run(&opts.socket_path, &root)
+        self.command.run(&self.socket_path)
     }
 }
 
@@ -50,11 +39,11 @@ enum Command {
 }
 
 impl Command {
-    fn run(self, path: &std::path::Path, logger: &slog::Logger) -> anyhow::Result<()> {
+    fn run(self, path: &std::path::Path) -> Result<()> {
         match self {
-            Command::Run(cmd) => cmd.run(path, logger),
-            Command::Serve(cmd) => cmd.run(path, logger),
-            Command::Status(cmd) => cmd.run(path, logger),
+            Command::Run(cmd) => cmd.run(path),
+            Command::Serve(cmd) => cmd.run(path),
+            Command::Status(cmd) => cmd.run(path),
         }
     }
 }

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
+use color_eyre::eyre::Result;
 
 use crate::service::Service;
 
@@ -26,38 +27,41 @@ pub(crate) struct Command {
 }
 
 impl Command {
-    pub(crate) fn run(self, path: &std::path::Path, logger: &slog::Logger) -> anyhow::Result<()> {
+    pub(crate) fn run(self, path: &std::path::Path) -> Result<()> {
         let runtime = tokio::runtime::Runtime::new()?;
-        let logger = logger.new(o!["command" => "serve"]);
 
-        let result = runtime.block_on(self.serve(path, &logger));
+        let span = tracing::span!(tracing::Level::DEBUG, "serve");
+        let _guard = span.enter();
 
-        info!(logger, "Shutting down");
+        let result = runtime.block_on(self.serve(path));
+
+        tracing::info!("Shutting down");
 
         result
     }
 
-    async fn serve(&self, path: &std::path::Path, logger: &slog::Logger) -> anyhow::Result<()> {
+    async fn serve(&self, path: &std::path::Path) -> Result<()> {
         let listener = TcpListener::bind(self.listen).await?;
         let registry = crate::registry::Registry::open(path, &self.domain)?;
 
         let config = Arc::new(rustls::ServerConfig::new(Arc::new(rustls::NoClientAuth)));
 
-        info!(logger, "TCP requests: {}", self.listen);
-        info!(logger, "Controller: {:?}", &path);
+        tracing::info!(%self.listen, "TCP request");
+        tracing::info!(?path, "Controller");
 
         loop {
             tokio::select! {
                 // Control socket
-                _ = registry.handle(&logger) => (),
+                _ = registry.handle() => (),
                 // Frontend socket
                 Ok((stream, addr)) = listener.accept() => {
-                    let logger = logger.new(o!["addr" => addr]);
-                    debug!(logger, "New connection");
+                    let span = tracing::span!(tracing::Level::DEBUG, "Connection", addr = %addr);
+                    let _guard = span.enter();
+
                     let session = rustls::ServerSession::new(&config);
                     let services = registry.services.clone();
 
-                    let handler = Self::handle_request(services, stream, session, logger);
+                    let handler = Self::handle_request(services, stream, session);
 
                     tokio::spawn(handler);
                 }
@@ -70,36 +74,34 @@ impl Command {
         services: Arc<RwLock<Registry>>,
         up: TcpStream,
         mut session: rustls::ServerSession,
-        logger: slog::Logger,
     ) {
         let mut buf = [0; 1024];
         let services = services.read();
         // Peek into the 1 MiB of the data and try to check if there is SNI information
         let len = up.peek(&mut buf).await.unwrap();
         if let Some(sni) = crate::service::parse_handshake(&mut session, &buf[..len]) {
-            let logger = logger.new(o![
-                "sni" => sni.clone(),
-            ]);
+            let span = tracing::span!(tracing::Level::DEBUG, "Request", sni = %sni);
+            let _guard = span.enter();
 
-            info!(logger, "Request");
+            tracing::info!("Request");
 
             let service = match services.await.get(&*sni) {
                 Some(service) => service.clone(),
                 None => {
                     // TODO: Redirect to page for service selection
-                    warn!(logger, "Request for unknown service {}", sni);
+                    tracing::warn!("Unknown service");
                     return;
                 }
             };
 
-            debug!(logger, "Downstream {}", service.addr);
+            tracing::debug!(%service.addr);
 
             let down = TcpStream::connect(service.addr).await.unwrap();
 
             let proxy = service.proxy.clone();
-            proxy.run(up, down, &logger).await.unwrap();
+            proxy.run(up, down).await.unwrap();
         } else {
-            warn!(logger, "Cannot find SNI");
+            tracing::warn!("Cannot find SNI");
         }
     }
 }

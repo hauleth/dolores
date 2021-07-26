@@ -5,6 +5,7 @@ use std::process;
 
 use nix::sys::socket::{self, socket};
 use nix::unistd::{dup2, fork, ForkResult, Pid};
+use color_eyre::eyre::Result;
 
 /// Run given command and pass sockets to listen on incoming connections
 #[derive(structopt::StructOpt, Debug)]
@@ -47,15 +48,12 @@ fn open_socket() -> io::Result<net::SocketAddr> {
 }
 
 impl Command {
-    pub(crate) fn run(self, path: &std::path::Path, logger: &slog::Logger) -> anyhow::Result<()> {
+    pub(crate) fn run(self, path: &std::path::Path) -> Result<()> {
         let name = self.name.as_ref().unwrap_or(&self.prog_name);
-        let logger = logger.new(o![
-            "command" => "run",
-            "name" => name.to_owned(),
-            "pid" => Pid::this().as_raw(),
-        ]);
+        let span = tracing::span!(tracing::Level::DEBUG, "run");
+        let _guard = span.enter();
 
-        debug!(logger, "Starting");
+        tracing::debug!("Starting");
 
         let addr = open_socket()?;
 
@@ -76,7 +74,8 @@ impl Command {
                 let runtime = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()?;
-                let logger = logger.new(o!["child" => child.as_raw()]);
+                let span = tracing::span!(tracing::Level::DEBUG, "run", child = ?child.as_raw());
+                let _guard = span.enter();
 
                 runtime
                     .block_on(async {
@@ -93,7 +92,7 @@ impl Command {
                             })
                             .await?;
 
-                        debug!(logger, "Registered {}", addr);
+                        tracing::debug!(?addr, "Registered");
                         loop {
                             tokio::select! {
                                 _ = tokio::signal::ctrl_c() =>
@@ -101,7 +100,7 @@ impl Command {
                                 _ = watcher.recv() => break,
                             }
                         }
-                        debug!(logger, "Shutting down");
+                        tracing::debug!("Shutting down");
 
                         client
                             .send(registry::Command::Deregister { name: name.into() })

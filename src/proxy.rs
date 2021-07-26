@@ -48,7 +48,7 @@ pub trait Proxy: Send + Sync + core::fmt::Debug {
     type Up;
     type Down;
 
-    async fn run(&self, up: Self::Up, down: Self::Down, logger: &slog::Logger) -> io::Result<()>;
+    async fn run(&self, up: Self::Up, down: Self::Down) -> io::Result<()>;
 }
 
 pub type TcpProxy = dyn Proxy<Up = tokio::net::TcpStream, Down = tokio::net::TcpStream>;

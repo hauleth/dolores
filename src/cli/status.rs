@@ -1,4 +1,6 @@
-/// Run given command and pass sockets to listen on incoming connections
+use color_eyre::eyre::Result;
+
+/// Return status of the registered services
 #[derive(structopt::StructOpt, Debug)]
 pub(crate) struct Command {
     #[structopt()]
@@ -6,20 +8,22 @@ pub(crate) struct Command {
 }
 
 impl Command {
-    pub(crate) fn run(self, path: &std::path::Path, logger: &slog::Logger) -> anyhow::Result<()> {
+    pub(crate) fn run(self, path: &std::path::Path) -> Result<()> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
-        let logger = logger.new(o!["command" => "status"]);
+
+        let span = tracing::span!(tracing::Level::DEBUG, "status");
+        let _guard = span.enter();
 
         runtime.block_on(async {
-            debug!(logger, "Query status");
+            tracing::debug!("Query status");
             let client = crate::registry::Client::open(path)?;
-            debug!(logger, "Client started");
+            tracing::debug!("Client started");
             let resp = client
                 .call(crate::registry::Command::Status { name: self.name })
                 .await?;
-            info!(logger, "{:?}", resp);
+            tracing::info!(?resp);
             Ok(())
         })
     }

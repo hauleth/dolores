@@ -47,6 +47,7 @@ impl Client {
         }
     }
 
+    /// Send message and ignore any response
     pub async fn send(&self, cmd: Command<'_>) -> io::Result<()> {
         self.socket
             .send(&bincode::serialize(&cmd).unwrap())
@@ -54,6 +55,7 @@ impl Client {
             .map(|_| ())
     }
 
+    /// Send message and await for response
     pub async fn call(&self, cmd: Command<'_>) -> io::Result<String> {
         self.send(cmd).await?;
         let mut buf = [0; 1024];
@@ -106,15 +108,14 @@ impl Registry {
         })
     }
 
-    pub async fn handle(&self, logger: &slog::Logger) -> io::Result<()> {
+    pub async fn handle(&self) -> io::Result<()> {
         let mut buf = [0; 1024];
         let (len, from) = self.socket.recv_from(&mut buf).await?;
         let cmd = bincode::deserialize::<Command>(&buf[..len]).unwrap();
-        debug!(logger, "{:?}", &cmd);
+        tracing::debug!(?cmd);
         Self::handle_command(
             self.services.clone(),
             cmd,
-            logger,
             &self.socket,
             from.as_pathname().unwrap(),
             &self.domain,
@@ -125,7 +126,6 @@ impl Registry {
     async fn handle_command(
         services: RegistryStore,
         command: Command<'_>,
-        logger: &slog::Logger,
         sock: &UnixDatagram,
         to: &std::path::Path,
         domain: &str,
@@ -134,7 +134,7 @@ impl Registry {
 
         match command {
             Status { name, .. } => {
-                info!(logger, "Status {}", name.as_deref().unwrap_or("(all)"));
+                tracing::info!(name = %name.as_deref().unwrap_or("(all)"), "Status");
                 match name {
                     Some(ref name) => {
                         let services = services.read().await;
@@ -156,7 +156,7 @@ impl Registry {
                 }
             }
             Register { name, addr, proxy } => {
-                info!(logger, "Register {}", name);
+                tracing::info!(%name, "Register");
                 let domain = format!("{}.{}", name, domain);
                 services
                     .write()
@@ -164,7 +164,7 @@ impl Registry {
                     .insert(domain, crate::service::Service::new(&name, addr, proxy));
             }
             Deregister { name, .. } => {
-                info!(logger, "Deregister {}", name);
+                tracing::info!(%name, "Deregister");
                 services.write().await.remove(&*name);
             }
         };

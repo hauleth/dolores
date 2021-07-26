@@ -34,9 +34,8 @@ impl super::Proxy for TlsTerminating {
         &self,
         up: Self::Up,
         mut down: Self::Down,
-        logger: &slog::Logger,
     ) -> io::Result<()> {
-        debug!(logger, "Proxy started");
+        tracing::debug!("Proxy started");
         let up_addr = up.local_addr().unwrap();
         let down_addr = down.peer_addr().unwrap();
         let mut up_buf = [0; 4 * 1024];
@@ -47,12 +46,12 @@ impl super::Proxy for TlsTerminating {
             // Read from any connection and write to the another one
             let finished = tokio::select! {
                 result = up.read(&mut up_buf) => {
-                    trace!(logger, "{} -> {}", up_addr, down_addr);
-                    copy(result, &up_buf, &mut down, &logger).await?
+                    tracing::trace!("{} -> {}", up_addr, down_addr);
+                    copy(result, &up_buf, &mut down).await?
                 }
                 result = down.read(&mut down_buf) => {
-                    trace!(logger, "{} <- {}", up_addr, down_addr);
-                    copy(result, &down_buf, &mut up, &logger).await?
+                    tracing::trace!("{} <- {}", up_addr, down_addr);
+                    copy(result, &down_buf, &mut up).await?
                 }
             };
 
@@ -67,25 +66,25 @@ async fn copy(
     result: io::Result<usize>,
     buf: &[u8],
     out: &mut (impl AsyncWriteExt + Unpin),
-    logger: &slog::Logger,
 ) -> io::Result<bool> {
     match result {
         Ok(0) => {
-            trace!(logger, "EOF");
+            tracing::trace!("EOF");
             Ok(true)
         }
         Ok(len) => {
-            trace!(logger, "Received {:?}", std::str::from_utf8(&buf[..len]));
+            let data = std::str::from_utf8(&buf[..len]);
+            tracing::trace!(?data, "Received");
             out.write(&buf[..len]).await?;
 
             Ok(false)
         }
         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-            trace!(logger, "Would block");
+            tracing::trace!("Would block");
             Ok(false)
         }
         Err(err) => {
-            error!(logger, "Error {:?}", err);
+            tracing::error!(?err, "Error");
             Err(err)
         }
     }
