@@ -34,14 +34,14 @@ fn open_socket() -> io::Result<net::SocketAddr> {
         socket::SockType::Stream,
         socket::SockFlag::empty(),
         None,
-    )
-    .map_err(|e| e.as_errno().unwrap())?;
-    socket::bind(fd, &socket::SockAddr::new_inet(addr)).map_err(|e| e.as_errno().unwrap())?;
-    socket::listen(fd, 10).map_err(|e| e.as_errno().unwrap())?;
+    )?;
 
-    dup2(fd, FD_START as i32).map_err(|e| e.as_errno().unwrap())?;
+    socket::bind(fd, &socket::SockAddr::new_inet(addr))?;
+    socket::listen(fd, 10)?;
 
-    match socket::getsockname(fd).map_err(|e| e.as_errno().unwrap())? {
+    dup2(fd, FD_START as i32)?;
+
+    match socket::getsockname(fd)? {
         socket::SockAddr::Inet(addr) => Ok(addr.to_std()),
         _ => unreachable!(),
     }
