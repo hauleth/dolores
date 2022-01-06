@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use color_eyre::eyre::Result;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
-use color_eyre::eyre::Result;
 
 use crate::service::Service;
 
