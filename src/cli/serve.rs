@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use color_eyre::eyre::Result;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
-use color_eyre::eyre::Result;
 
 use crate::service::Service;
 
@@ -44,7 +44,18 @@ impl Command {
         let listener = TcpListener::bind(self.listen).await?;
         let registry = crate::registry::Registry::open(path, &self.domain)?;
 
-        let config = Arc::new(rustls::ServerConfig::new(Arc::new(rustls::NoClientAuth)));
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+        let certs = vec![rustls::Certificate(cert.serialize_der().unwrap())];
+        let priv_key = rustls::PrivateKey(cert.serialize_private_key_der());
+
+        // let config = Arc::new(rustls::ServerConfig::new(Arc::new(rustls::NoClientAuth)));
+        let config = rustls::ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(certs, priv_key)
+            .expect("Bad certificate/key");
+
+        let config = Arc::new(config);
 
         tracing::info!(%self.listen, "TCP request");
         tracing::info!(?path, "Controller");
@@ -58,10 +69,10 @@ impl Command {
                     let span = tracing::span!(tracing::Level::DEBUG, "Connection", addr = %addr);
                     let _guard = span.enter();
 
-                    let session = rustls::ServerSession::new(&config);
+                    let connection = rustls::ServerConnection::new(config.clone())?;
                     let services = registry.services.clone();
 
-                    let handler = Self::handle_request(services, stream, session);
+                    let handler = Self::handle_request(services, stream, connection);
 
                     tokio::spawn(handler);
                 }
@@ -73,13 +84,13 @@ impl Command {
     async fn handle_request(
         services: Arc<RwLock<Registry>>,
         up: TcpStream,
-        mut session: rustls::ServerSession,
+        mut connection: rustls::ServerConnection,
     ) {
         let mut buf = [0; 1024];
         let services = services.read();
         // Peek into the 1 MiB of the data and try to check if there is SNI information
         let len = up.peek(&mut buf).await.unwrap();
-        if let Some(sni) = crate::service::parse_handshake(&mut session, &buf[..len]) {
+        if let Some(sni) = crate::service::parse_handshake(&mut connection, &buf[..len]) {
             let span = tracing::span!(tracing::Level::DEBUG, "Request", sni = %sni);
             let _guard = span.enter();
 

@@ -9,11 +9,7 @@ impl super::Proxy for Transparent {
     type Up = tokio::net::TcpStream;
     type Down = tokio::net::TcpStream;
 
-    async fn run(
-        &self,
-        mut up: Self::Up,
-        mut down: Self::Down,
-    ) -> io::Result<()> {
+    async fn run(&self, mut up: Self::Up, mut down: Self::Down) -> io::Result<()> {
         tracing::debug!("Proxy started");
 
         let (mut ru, mut wu) = up.split();
@@ -29,7 +25,9 @@ impl super::Proxy for Transparent {
                 wu.shutdown().await
             };
 
-            tokio::try_join!(up_down, down_up)?;
+            // XXX: Check how to handle this result and whether it makes sense to report anything
+            // meaningful there
+            let _ = tokio::try_join!(up_down, down_up);
         }
     }
 }

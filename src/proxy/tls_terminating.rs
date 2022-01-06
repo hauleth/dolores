@@ -12,12 +12,14 @@ pub struct TlsTerminating {
 impl TlsTerminating {
     pub fn self_signed(domain: super::Domain) -> Self {
         let cert = rcgen::generate_simple_self_signed(domain).unwrap();
-        let mut config = rustls::ServerConfig::new(Arc::new(rustls::NoClientAuth));
-
         let certs = vec![rustls::Certificate(cert.serialize_der().unwrap())];
         let priv_key = rustls::PrivateKey(cert.serialize_private_key_der());
 
-        config.set_single_cert(certs, priv_key).unwrap();
+        let config = rustls::ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(certs, priv_key)
+            .expect("Bad certificate/key");
 
         let acceptor = TlsAcceptor::from(Arc::new(config));
 
@@ -30,11 +32,7 @@ impl super::Proxy for TlsTerminating {
     type Up = tokio::net::TcpStream;
     type Down = tokio::net::TcpStream;
 
-    async fn run(
-        &self,
-        up: Self::Up,
-        mut down: Self::Down,
-    ) -> io::Result<()> {
+    async fn run(&self, up: Self::Up, mut down: Self::Down) -> io::Result<()> {
         tracing::debug!("Proxy started");
         let up_addr = up.local_addr().unwrap();
         let down_addr = down.peer_addr().unwrap();

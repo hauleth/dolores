@@ -1,8 +1,6 @@
 use std::net;
 use std::sync::Arc;
 
-use rustls::Session;
-
 #[derive(Clone, Debug)]
 pub struct Service {
     pub domain: String,
@@ -20,10 +18,10 @@ impl Service {
     }
 }
 
-pub fn parse_handshake(session: &mut rustls::ServerSession, mut data: &[u8]) -> Option<String> {
-    session.read_tls(&mut data).ok()?;
-    let _ = session.process_new_packets();
-    session.get_sni_hostname().and_then(|sni| {
+pub fn parse_handshake(connection: &mut rustls::ServerConnection, mut data: &[u8]) -> Option<String> {
+    connection.read_tls(&mut data).ok()?;
+    let _ = connection.process_new_packets();
+    connection.sni_hostname().and_then(|sni| {
         let mut parts = sni.split('.');
         let tld = parts.nth_back(0)?;
         let name = parts.nth_back(0)?;
