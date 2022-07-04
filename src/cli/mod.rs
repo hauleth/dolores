@@ -1,11 +1,12 @@
-use structopt::StructOpt;
 use color_eyre::eyre::Result;
+use clap::Parser;
 
 mod run;
 mod serve;
 mod status;
+mod gen_cert;
 
-#[derive(structopt::StructOpt, Debug)]
+#[derive(clap::Parser, Debug)]
 pub struct App {
     #[structopt(short, long)]
     pub debug: bool,
@@ -22,7 +23,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self { Self::from_args() }
+    pub fn new() -> Self { Parser::parse() }
 
     pub fn run(self) -> Result<()> {
         tracing::debug!(?self);
@@ -31,11 +32,12 @@ impl App {
     }
 }
 
-#[derive(structopt::StructOpt, Debug)]
+#[derive(Parser, Debug)]
 enum Command {
     Run(run::Command),
     Serve(serve::Command),
     Status(status::Command),
+    GenCert(gen_cert::Command),
 }
 
 impl Command {
@@ -44,6 +46,7 @@ impl Command {
             Command::Run(cmd) => cmd.run(path),
             Command::Serve(cmd) => cmd.run(path),
             Command::Status(cmd) => cmd.run(path),
+            Command::GenCert(cmd) => cmd.run(),
         }
     }
 }

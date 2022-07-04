@@ -86,7 +86,7 @@ impl Drop for Client {
     }
 }
 
-type RegistryStore = Arc<RwLock<HashMap<String, crate::service::Service>>>;
+pub type RegistryStore = Arc<RwLock<HashMap<String, crate::service::Service>>>;
 
 #[derive(Debug)]
 pub struct Registry {
@@ -156,16 +156,18 @@ impl Registry {
                 }
             }
             Register { name, addr, proxy } => {
-                tracing::info!(%name, "Register");
                 let domain = format!("{}.{}", name, domain);
+                tracing::info!(%name, %domain, "Register");
                 services
                     .write()
                     .await
                     .insert(domain, crate::service::Service::new(&name, addr, proxy));
             }
             Deregister { name, .. } => {
-                tracing::info!(%name, "Deregister");
-                services.write().await.remove(&*name);
+                let domain = format!("{}.{}", name, domain);
+                let mut services = services.write().await;
+                services.remove(&*domain).unwrap();
+                tracing::info!(%name, %domain, "Deregistered");
             }
         };
 
