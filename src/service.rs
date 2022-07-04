@@ -1,10 +1,11 @@
 use std::net;
 use std::sync::Arc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct Service {
     pub domain: String,
     pub addr: net::SocketAddr,
+    #[serde(skip_serializing)]
     pub proxy: Arc<crate::proxy::TcpProxy>,
 }
 

@@ -6,5 +6,7 @@ pub mod proxy;
 pub mod registry;
 pub mod service;
 
+mod dashboard;
+
 pub use registry::Client;
 pub use service::Service;

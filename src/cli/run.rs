@@ -8,7 +8,7 @@ use nix::unistd::{dup2, fork, ForkResult, Pid};
 use color_eyre::eyre::Result;
 
 /// Run given command and pass sockets to listen on incoming connections
-#[derive(structopt::StructOpt, Debug)]
+#[derive(clap::Parser, Debug)]
 pub(crate) struct Command {
     #[structopt(short, long)]
     name: Option<String>,
