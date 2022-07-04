@@ -1,0 +1,11 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<p>Hello world!</p>
+
+<ul>
+  {% for (domain, _) in registry %}
+  <li><a href="https://{{ domain|domain_url(req) }}">{{ domain }}</a></li>
+  {% endfor %}
+</ul>
+{% endblock %}

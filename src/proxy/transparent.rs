@@ -1,6 +1,10 @@
 use tokio::io;
 use tokio::io::AsyncWriteExt;
 
+/// Transparent proxy
+///
+/// This proxy will forward all data **as is** so it is the downstream responsibility to handle TLS
+/// termination
 #[derive(Clone, Debug)]
 pub struct Transparent;
 
