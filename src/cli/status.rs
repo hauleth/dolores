@@ -1,9 +1,9 @@
 use color_eyre::eyre::Result;
 
 /// Return status of the registered services
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Args, Debug)]
 pub(crate) struct Command {
-    #[structopt()]
+    /// Name of service for which status should be checked
     name: Option<String>,
 }
 

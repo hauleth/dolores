@@ -1,20 +1,22 @@
 use color_eyre::eyre::Result;
-use clap::Parser;
 
 mod run;
 mod serve;
 mod status;
-mod gen_cert;
+mod gen;
 
 #[derive(clap::Parser, Debug)]
+#[command(version, author, about)]
 pub struct App {
-    #[structopt(short, long)]
+    /// Enable debugging logs.
+    #[arg(short, long)]
     pub debug: bool,
 
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     command: Command,
 
-    #[structopt(
+    /// Path for UNIX socket used for communicating with Dolores server
+    #[arg(
         long = "socket",
         env = "DOLORES_SOCKET",
         default_value = "/var/run/dolores.sock"
@@ -23,7 +25,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self { Parser::parse() }
+    pub fn new() -> Self { clap::Parser::parse() }
 
     pub fn run(self) -> Result<()> {
         tracing::debug!(?self);
@@ -32,12 +34,12 @@ impl App {
     }
 }
 
-#[derive(Parser, Debug)]
+#[derive(clap::Subcommand, Debug)]
 enum Command {
     Run(run::Command),
     Serve(serve::Command),
     Status(status::Command),
-    GenCert(gen_cert::Command),
+    Gen(gen::Command),
 }
 
 impl Command {
@@ -46,7 +48,7 @@ impl Command {
             Command::Run(cmd) => cmd.run(path),
             Command::Serve(cmd) => cmd.run(path),
             Command::Status(cmd) => cmd.run(path),
-            Command::GenCert(cmd) => cmd.run(),
+            Command::Gen(cmd) => cmd.run(),
         }
     }
 }
