@@ -4,22 +4,22 @@ use color_eyre::eyre::Result;
 use tokio::net::{TcpListener, TcpStream};
 
 /// Start master process listening for connections
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Args, Debug)]
 pub(crate) struct Command {
     /// TLD that will be used for handling the applications
-    #[structopt(short, long, default_value = "localhost")]
+    #[arg(short, long, default_value = "localhost")]
     domain: String,
 
     /// Address which Dolores should listen at
-    #[structopt(short, long, default_value = "0.0.0.0:443")]
+    #[arg(short, long, default_value = "0.0.0.0:443")]
     listen: std::net::SocketAddr,
 
     /// Path to the PEM encoded Certificate Authority key
-    #[structopt(long, requires("ca-key"))]
+    #[arg(long, requires("ca_key"))]
     ca_cert: Option<std::path::PathBuf>,
 
     /// Path to the PEM encoded Certificate Authority private certificate
-    #[structopt(long, requires("ca-cert"))]
+    #[arg(long, requires("ca_cert"))]
     ca_key: Option<std::path::PathBuf>,
 }
 

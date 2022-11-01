@@ -8,18 +8,20 @@ use nix::unistd::{dup2, fork, ForkResult, Pid};
 use color_eyre::eyre::Result;
 
 /// Run given command and pass sockets to listen on incoming connections
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Args, Debug)]
 pub(crate) struct Command {
-    #[structopt(short, long)]
+    /// Name of the service to register in the daemon.
+    /// It will also be used as a domain to access the application.
+    #[arg(short, long)]
     name: Option<String>,
 
-    #[structopt(long, default_value = "terminating")]
+    #[arg(long, default_value = "terminating")]
     proxy: crate::proxy::Type,
 
-    #[structopt(name = "PROG")]
+    #[arg(name = "PROG")]
     prog_name: String,
 
-    #[structopt(name = "ARGS")]
+    #[arg(name = "ARGS")]
     prog_args: Vec<String>,
 }
 
@@ -27,7 +29,7 @@ const FD_START: i32 = 3;
 
 // TODO: Support more socket types and allow using other socket types, not only TCP
 fn open_socket() -> io::Result<net::SocketAddr> {
-    let addr = socket::InetAddr::new(socket::IpAddr::new_v6(0, 0, 0, 0, 0, 0, 0, 1), 0);
+    let addr: socket::SockaddrIn6 = net::SocketAddrV6::new(net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 0, 0, 0).into();
 
     let fd = socket(
         socket::AddressFamily::Inet6,
@@ -36,7 +38,7 @@ fn open_socket() -> io::Result<net::SocketAddr> {
         None,
     )?;
 
-    socket::bind(fd, &socket::SockAddr::new_inet(addr))?;
+    socket::bind(fd, &addr)?;
     socket::listen(fd, 10)?;
 
     dup2(fd, FD_START as i32)?;

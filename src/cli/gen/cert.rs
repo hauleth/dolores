@@ -6,16 +6,16 @@ use std::path::PathBuf;
 
 use rcgen::{BasicConstraints::*, GeneralSubtree::DnsName, *};
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Args, Debug)]
 /// Generate CA certificate and gey for usage with the server.
 pub(crate) struct Command {
-    #[structopt(long, default_value = "dolores.crt")]
+    #[arg(long, default_value = "dolores.crt")]
     /// Filename for certificate file
     cert: PathBuf,
-    #[structopt(long, default_value = "dolores.key")]
+    #[arg(long, default_value = "dolores.key")]
     /// Filename for key file
     key: PathBuf,
-    #[structopt(long = "domain", default_value = "localhost")]
+    #[arg(long = "domain", default_value = "localhost")]
     /// Domains that will be supported by given certificate
     domains: Vec<String>,
 }
