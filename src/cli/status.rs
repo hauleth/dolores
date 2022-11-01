@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
 
 /// Return status of the registered services
-#[derive(structopt::StructOpt, Debug)]
+#[derive(clap::Parser, Debug)]
 pub(crate) struct Command {
     #[structopt()]
     name: Option<String>,

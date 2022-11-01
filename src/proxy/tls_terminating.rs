@@ -4,6 +4,14 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_rustls::TlsAcceptor;
 
+/// TLS terminating proxy
+///
+/// This proxy will terminate TLS on the boundary and will pass raw TCP communication downstream.
+/// It supports:
+///
+/// - Self-signed certificates generated on demand
+/// - Generated certificates that are signed by the given CA (WIP)
+/// - Passed certificate (TODO)
 #[derive(Clone)]
 pub struct TlsTerminating {
     acceptor: TlsAcceptor,
@@ -15,6 +23,20 @@ impl TlsTerminating {
         let certs = vec![rustls::Certificate(cert.serialize_der().unwrap())];
         let priv_key = rustls::PrivateKey(cert.serialize_private_key_der());
 
+        Self::build(certs, priv_key)
+    }
+
+    pub fn from_ca(domain: super::Domain, ca_cert: &rcgen::Certificate) -> Self {
+        let cert = rcgen::generate_simple_self_signed(domain).unwrap();
+        let certs = vec![rustls::Certificate(
+            cert.serialize_der_with_signer(ca_cert).unwrap(),
+        )];
+        let priv_key = rustls::PrivateKey(cert.serialize_private_key_der());
+
+        Self::build(certs, priv_key)
+    }
+
+    fn build(certs: Vec<rustls::Certificate>, priv_key: rustls::PrivateKey) -> Self {
         let config = rustls::ServerConfig::builder()
             .with_safe_defaults()
             .with_no_client_auth()
