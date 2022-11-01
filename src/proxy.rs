@@ -9,9 +9,8 @@ pub use tls_terminating::TlsTerminating;
 pub use transparent::Transparent;
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Hash, serde::Serialize, serde::Deserialize, strum::EnumString,
+    Debug, Clone, Copy, PartialEq, Hash, serde::Serialize, serde::Deserialize, clap::ValueEnum
 )]
-#[strum(serialize_all = "snake_case")]
 pub enum Type {
     Passthrough,
     Terminating,
