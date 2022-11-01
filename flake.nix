@@ -3,28 +3,44 @@
 
   inputs.nixpkgs.url = "flake:nixpkgs";
   inputs.flake-utils.url = "github:numtide/flake-utils";
+  inputs.rust-overlay.url = "github:oxalica/rust-overlay";
 
-  outputs = { self, nixpkgs, flake-utils }: flake-utils.lib.eachDefaultSystem (system:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils }: flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = nixpkgs.legacyPackages.${system};
-    in {
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [
+          rust-overlay.overlay
+          (self: super: {
+            # Because rust-overlay bundles multiple rust packages into one
+            # derivation, specify that mega-bundle here, so that crate2nix
+            # will use them automatically.
+            rustc = self.rust-bin.stable.latest.default;
+            cargo = self.rust-bin.stable.latest.default;
+          })
+        ];
+      };
+
+    in
+    {
       inherit self nixpkgs;
 
       devShell = pkgs.mkShell {
-        buildInputs = [
-          pkgs.cargo
-          pkgs.cargo-bloat
-          pkgs.cargo-outdated
-          pkgs.clippy
-          pkgs.rustc
-          pkgs.rust-analyzer
-          pkgs.libiconv
-          pkgs.rustfmt
-          pkgs.socat
-          pkgs.openssl
+        buildInputs = with pkgs; [
+          cargo
+          cargo-bloat
+          cargo-outdated
+          clippy
+          rustc
+          rust-analyzer
+          libiconv
+          rustfmt
+          socat
+          openssl
         ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-          pkgs.darwin.apple_sdk.frameworks.CoreFoundation
-          pkgs.darwin.apple_sdk.frameworks.CoreServices
+          darwin.apple_sdk.frameworks.CoreFoundation
+          darwin.apple_sdk.frameworks.CoreServices
+          darwin.apple_sdk.frameworks.IOKit
         ];
       };
     });
