@@ -1,6 +1,7 @@
 use std::io;
 use std::net;
 use std::os::unix::process::CommandExt;
+use std::os::fd::AsRawFd;
 use std::process;
 
 use color_eyre::eyre::Result;
@@ -39,12 +40,12 @@ fn open_socket() -> io::Result<net::SocketAddr> {
         None,
     )?;
 
-    socket::bind(fd, &addr)?;
-    socket::listen(fd, 10)?;
+    socket::bind(fd.as_raw_fd(), &addr)?;
+    socket::listen(&fd, socket::Backlog::MAXCONN)?;
 
-    dup2(fd, FD_START as i32)?;
+    dup2(fd.as_raw_fd(), FD_START as i32)?;
 
-    let ss: socket::SockaddrStorage = socket::getsockname(fd)?;
+    let ss: socket::SockaddrStorage = socket::getsockname(fd.as_raw_fd())?;
 
     let addr = ss.as_sockaddr_in6().expect("It has to be IPv6 address");
     let ipv6 = net::IpAddr::V6(addr.ip());
