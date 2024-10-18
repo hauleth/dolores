@@ -46,8 +46,8 @@ impl Command {
         // now). In future it may be used for https://localhost or other pages to show list of the
         // currently registered apps, metrics, etc.
         let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-        let certs = vec![cert.serialize_der().unwrap().into()];
-        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.serialize_private_key_der().into();
+        let certs = vec![cert.cert.der().clone()];
+        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.key_pair.serialize_der().into();
         let priv_key = pk_der.into();
 
         let config = rustls::ServerConfig::builder()
@@ -96,7 +96,9 @@ async fn handle_request(
     let mut buf = [0; 1024];
     // Peek into the 1 MiB of the data and try to check if there is SNI information
     let len = up.peek(&mut buf).await.unwrap();
-    if let Some(sni) = crate::service::parse_handshake(&mut connection, &buf[..len]) {
+    if buf.starts_with(&b"GET "[..]) {
+        tracing::error!("HTTP request, HTTPS expected");
+    } else if let Some(sni) = crate::service::parse_handshake(&mut connection, &buf[..len]) {
         let span = tracing::span!(tracing::Level::DEBUG, "Request", sni = %sni);
         let _guard = span.enter();
 

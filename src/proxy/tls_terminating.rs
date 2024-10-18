@@ -23,23 +23,27 @@ pub struct TlsTerminating {
 impl TlsTerminating {
     pub fn self_signed(domain: super::Domain) -> Self {
         let cert = rcgen::generate_simple_self_signed(domain).unwrap();
-        let certs = vec![cert.serialize_der().unwrap().into()];
-        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.serialize_private_key_der().into();
+        let certs = vec![cert.cert.der().clone()];
+        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.key_pair.serialize_der().into();
         let priv_key = pk_der.into();
 
         Self::build(certs, priv_key)
     }
 
-    pub fn from_ca(domain: super::Domain, ca_cert: &rcgen::Certificate) -> Self {
-        let cert = rcgen::generate_simple_self_signed(domain).unwrap();
-        let certs = vec![
-            cert.serialize_der_with_signer(ca_cert).unwrap().into(),
-        ];
-        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.serialize_private_key_der().into();
-        let priv_key = pk_der.into();
-
-        Self::build(certs, priv_key)
-    }
+    //pub fn from_ca(domain: super::Domain, ca_cert: &rcgen::Certificate) -> Self {
+    //    let keypair = rcgen::KeyPair::generate();
+    //    let params = rcgen::CertificateParams::new(domain).unwrap()
+    //        .signed_by(&keypair, &ca_cert.cert, &ca_cert.key_pair)
+    //        .unwrap();
+    //    let cert = rcgen::generate_simple_self_signed(domain).unwrap();
+    //    let certs = vec![
+    //        cert.serialize_der_with_signer(ca_cert).unwrap().into(),
+    //    ];
+    //    let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.serialize_private_key_der().into();
+    //    let priv_key = pk_der.into();
+    //
+    //    Self::build(certs, priv_key)
+    //}
 
     fn build(certs: Vec<rustls::pki_types::CertificateDer<'static>>, priv_key: rustls::pki_types::PrivateKeyDer<'static>) -> Self {
         let config = tokio_rustls::rustls::ServerConfig::builder()

@@ -35,15 +35,16 @@ impl Command {
             excluded_subtrees: vec![],
         };
 
-        let mut params = CertificateParams::new(self.domains);
+        let mut params = CertificateParams::new(self.domains)?;
         params.key_usages = vec![KeyUsagePurpose::KeyCertSign];
         params.is_ca = IsCa::Ca(Constrained(0));
         params.distinguished_name = distinguished_name;
         params.name_constraints = Some(name_constraints);
 
-        let cert = Certificate::from_params(params)?;
-        let cert_pem = cert.serialize_pem()?;
-        let key_pem = cert.serialize_private_key_pem();
+        let key_pair = rcgen::KeyPair::generate()?;
+        let cert = params.self_signed(&key_pair)?;
+        let cert_pem = cert.pem();
+        let key_pem = key_pair.serialize_pem();
 
         File::create(self.cert)?.write_all(cert_pem.as_bytes())?;
         File::create(self.key)?.write_all(key_pem.as_bytes())?;
