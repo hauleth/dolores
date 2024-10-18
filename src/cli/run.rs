@@ -70,7 +70,7 @@ impl Command {
                     // Use systemd-like interface to pass the sockets to the new process
                     .env("LISTEN_FDS", "1")
                     .env("LISTEN_PID", Pid::this().to_string())
-                    .env("LISTEN_FDNAMES", "http")
+                    .env("LISTEN_FDNAMES", "https")
                     .exec();
 
                 // If we reach that, then `exec` above failed, so we just return error directly
