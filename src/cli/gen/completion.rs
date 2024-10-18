@@ -4,9 +4,21 @@ use std::str::FromStr;
 use color_eyre::eyre::Result;
 
 use clap::CommandFactory;
+use clap::ValueEnum;
 use clap_complete::{generate, Shell};
 
-use indoc::printdoc;
+use indoc::eprintdoc;
+
+#[derive(Debug)]
+struct UnsupportedShell;
+
+impl std::fmt::Display for UnsupportedShell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "Unknown shell")
+    }
+}
+
+impl std::error::Error for UnsupportedShell {}
 
 /// Generate shell completion
 #[derive(clap::Args, Debug)]
@@ -24,23 +36,35 @@ impl Command {
 
         let shell = self.shell.or_else(Self::default_shell);
 
-        // println!("{shell:?}");
-
         match shell {
-            Some(shell) => generate(shell, &mut cmd, name, &mut std::io::stdout()),
+            Some(shell) => {
+                generate(shell, &mut cmd, name, &mut std::io::stdout());
+
+                Ok(())
+            }
             None => {
-                printdoc! {"
+                let shells =
+                    Shell::value_variants()
+                    .into_iter()
+                    .map(|v| v.to_possible_value().unwrap().get_name().to_owned())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                eprintdoc! {"
                     Couldn't detect shell.
                     Provide shell as an argument to the command, ex.
 
                         dolores gen completion bash
-                "};
-            },
-        }
 
-        Ok(())
+                    Supported shells: {shells}
+                "};
+
+                Err(UnsupportedShell)?
+            }
+        }
     }
 
+    /// Check `SHELL` environment variable try to detect current shell.
     fn default_shell() -> Option<Shell> {
         let shell_env = std::env::var("SHELL").ok()?;
         let shell_path = Path::new(&shell_env);

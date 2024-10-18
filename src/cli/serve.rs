@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use color_eyre::eyre::Result;
 use tokio::net::{TcpListener, TcpStream};
+use tokio_rustls::rustls;
 
 /// Start master process listening for connections
 #[derive(clap::Args, Debug)]
@@ -45,11 +46,11 @@ impl Command {
         // now). In future it may be used for https://localhost or other pages to show list of the
         // currently registered apps, metrics, etc.
         let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-        let certs = vec![rustls::Certificate(cert.serialize_der().unwrap())];
-        let priv_key = rustls::PrivateKey(cert.serialize_private_key_der());
+        let certs = vec![cert.serialize_der().unwrap().into()];
+        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.serialize_private_key_der().into();
+        let priv_key = pk_der.into();
 
         let config = rustls::ServerConfig::builder()
-            .with_safe_defaults()
             .with_no_client_auth()
             .with_single_cert(certs, priv_key)
             .expect("Bad certificate/key");

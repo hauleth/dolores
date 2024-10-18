@@ -1,6 +1,8 @@
 use std::net;
 use std::sync::Arc;
 
+use tokio_rustls::rustls;
+
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct Service {
     pub domain: String,
@@ -22,7 +24,7 @@ impl Service {
 pub fn parse_handshake(connection: &mut rustls::ServerConnection, mut data: &[u8]) -> Option<String> {
     connection.read_tls(&mut data).ok()?;
     let _ = connection.process_new_packets();
-    connection.sni_hostname().and_then(|sni| {
+    connection.server_name().and_then(|sni| {
         let mut parts = sni.split('.');
         let tld = parts.nth_back(0)?;
         let name = parts.nth_back(0)?;

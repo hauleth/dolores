@@ -3,9 +3,9 @@ use std::net;
 use std::os::unix::process::CommandExt;
 use std::process;
 
+use color_eyre::eyre::Result;
 use nix::sys::socket::{self, socket};
 use nix::unistd::{dup2, fork, ForkResult, Pid};
-use color_eyre::eyre::Result;
 
 /// Run given command and pass sockets to listen on incoming connections
 #[derive(clap::Args, Debug)]
@@ -29,7 +29,8 @@ const FD_START: i32 = 3;
 
 // TODO: Support more socket types and allow using other socket types, not only TCP
 fn open_socket() -> io::Result<net::SocketAddr> {
-    let addr: socket::SockaddrIn6 = net::SocketAddrV6::new(net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 0, 0, 0).into();
+    let addr: socket::SockaddrIn6 =
+        net::SocketAddrV6::new(net::Ipv6Addr::LOCALHOST, 0, 0, 0).into();
 
     let fd = socket(
         socket::AddressFamily::Inet6,
@@ -43,10 +44,12 @@ fn open_socket() -> io::Result<net::SocketAddr> {
 
     dup2(fd, FD_START as i32)?;
 
-    match socket::getsockname(fd)? {
-        socket::SockAddr::Inet(addr) => Ok(addr.to_std()),
-        _ => unreachable!(),
-    }
+    let ss: socket::SockaddrStorage = socket::getsockname(fd)?;
+
+    let addr = ss.as_sockaddr_in6().expect("It has to be IPv6 address");
+    let ipv6 = net::IpAddr::V6(addr.ip());
+
+    Ok(net::SocketAddr::new(ipv6, addr.port()))
 }
 
 impl Command {

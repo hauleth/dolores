@@ -1,5 +1,9 @@
 use color_eyre::eyre::Result;
-use hyper::{Body, Request, Response, StatusCode};
+use hyper::{
+    body::Incoming,
+    Request,
+    Response
+};
 use askama::Template;
 
 use std::sync::Arc;
@@ -12,7 +16,7 @@ pub struct Home;
 #[allow(dead_code)]
 #[template(path = "hello.html")]
 struct HomeTemplate<'a> {
-    req: Request<Body>,
+    req: Request<Incoming>,
     registry: &'a HashMap<String, crate::service::Service>
 }
 
@@ -20,16 +24,16 @@ struct HomeTemplate<'a> {
 impl super::Handler for Home {
     async fn handle(
         self: Arc<Self>,
-        req: Request<Body>,
+        req: Request<Incoming>,
         ctx: super::Context,
-    ) -> Result<Response<Body>> {
+    ) -> Result<Response<String>> {
         let registry = ctx.registry.read().await;
 
         let view = HomeTemplate { req, registry: &*registry };
 
         Ok(Response::builder()
             .header("content-type", "text/html")
-            .body(Body::from(view.render()?))?)
+            .body(view.render()?)?)
     }
 }
 
@@ -39,10 +43,10 @@ pub struct Health;
 impl super::Handler for Health {
     async fn handle(
         self: Arc<Self>,
-        _req: Request<Body>,
+        _req: Request<Incoming>,
         _ctx: super::Context,
-    ) -> Result<Response<Body>> {
-        Ok(Response::new(Body::from("Ok\n")))
+    ) -> Result<Response<String>> {
+        Ok(Response::builder().body("Ok\n".into())?)
     }
 }
 
@@ -51,13 +55,15 @@ mod filters {
 
     use hyper::Request;
 
+    use std::borrow::Cow;
+
     pub fn debug(val: impl std::fmt::Debug) -> askama::Result<String> {
         Ok(format!("{val:?}"))
     }
 
     pub fn domain_url<B>(domain: &str, req: &Request<B>) -> askama::Result<String> {
-        let port = match req.uri().port_u16() {
-            Some(p) if p != 443 => format!(":{p}"),
+        let port: Cow<str> = match req.uri().port_u16() {
+            Some(p) if p != 443 => format!(":{p}").into(),
             _ => "".into()
         };
         Ok(format!("https://{domain}{port}"))

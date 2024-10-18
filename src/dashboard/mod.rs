@@ -1,7 +1,19 @@
 use color_eyre::eyre::Result;
-use hyper::server::conn::Http;
+use hyper_util::{
+    rt::{TokioExecutor, TokioIo},
+    server::conn::auto::Builder as Http,
+};
 use hyper::service::service_fn;
-use hyper::{Body, Request, Response, StatusCode};
+use hyper::{
+    body::Incoming,
+    Request,
+    Response,
+};
+
+use tokio_rustls::{
+    TlsAcceptor,
+    rustls,
+};
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -12,7 +24,7 @@ mod handlers;
 
 #[async_trait]
 trait Handler: Send + Sync {
-    async fn handle(self: Arc<Self>, req: Request<Body>, ctx: Context) -> Result<Response<Body>>;
+    async fn handle(self: Arc<Self>, req: Request<Incoming>, ctx: Context) -> Result<Response<String>>;
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -33,7 +45,7 @@ pub struct Server {
 
 impl Server {
     pub fn new(registry: RegistryStore, tls_config: Arc<rustls::ServerConfig>) -> Self {
-        let acceptor = tokio_rustls::TlsAcceptor::from(tls_config);
+        let acceptor = TlsAcceptor::from(tls_config);
         let mut router = matchit::Router::<Arc<dyn Handler>>::new();
 
         router.insert("/", Arc::new(handlers::Home)).unwrap();
@@ -44,10 +56,11 @@ impl Server {
 
     pub async fn handle(&self, stream: tokio::net::TcpStream) -> std::io::Result<()> {
         let tls_stream = self.acceptor.accept(stream).await?;
+        let io_stream = TokioIo::new(tls_stream);
 
         let service_fn = service_fn(move |req| {
             let req = add_host(req);
-            tracing::info!(?req);
+            tracing::info!(?req, "Incoming request");
             let ctx = Context {
                 registry: self.registry.clone(),
             };
@@ -56,8 +69,8 @@ impl Server {
             Handler::handle(route.value.clone(), req, ctx)
         });
 
-        if let Err(http_err) = Http::new()
-            .serve_connection(tls_stream, service_fn)
+        if let Err(http_err) = Http::new(TokioExecutor::new())
+            .serve_connection(io_stream, service_fn)
             .await
         {
             tracing::error!("Error while serving HTTP connection: {}", http_err);
@@ -68,7 +81,7 @@ impl Server {
 }
 
 /// Add details to URI from `Host` header
-fn add_host(mut req: Request<Body>) -> Request<Body> {
+fn add_host(mut req: Request<Incoming>) -> Request<Incoming> {
     let host = req.headers().get("host").cloned();
 
     tracing::info!(?host);
@@ -76,8 +89,8 @@ fn add_host(mut req: Request<Body>) -> Request<Body> {
     let uri = req.uri_mut();
     let mut parts = uri.clone().into_parts();
     // We know that we are handling HTTPS connection
-    parts.scheme = Some(http::uri::Scheme::HTTPS);
-    parts.authority = host.and_then(|host| http::uri::Authority::from_maybe_shared(host).ok());
+    parts.scheme = Some(hyper::http::uri::Scheme::HTTPS);
+    parts.authority = host.and_then(|host| hyper::http::uri::Authority::from_maybe_shared(host).ok());
 
     *uri = hyper::Uri::from_parts(parts).unwrap();
 
