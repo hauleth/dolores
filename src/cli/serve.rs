@@ -47,7 +47,7 @@ impl Command {
         // currently registered apps, metrics, etc.
         let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
         let certs = vec![cert.cert.der().clone()];
-        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.key_pair.serialize_der().into();
+        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.signing_key.serialize_der().into();
         let priv_key = pk_der.into();
 
         let config = rustls::ServerConfig::builder()

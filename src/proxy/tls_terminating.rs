@@ -24,7 +24,7 @@ impl TlsTerminating {
     pub fn self_signed(domain: super::Domain) -> Self {
         let cert = rcgen::generate_simple_self_signed(domain).unwrap();
         let certs = vec![cert.cert.der().clone()];
-        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.key_pair.serialize_der().into();
+        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.signing_key.serialize_der().into();
         let priv_key = pk_der.into();
 
         Self::build(certs, priv_key)
