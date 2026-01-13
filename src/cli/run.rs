@@ -6,7 +6,7 @@ use std::process;
 
 use color_eyre::eyre::Result;
 use nix::sys::socket::{self, socket};
-use nix::unistd::{dup2, fork, ForkResult, Pid};
+use nix::unistd::{dup2_raw, fork, ForkResult, Pid};
 
 /// Run given command and pass sockets to listen on incoming connections
 #[derive(clap::Args, Debug)]
@@ -29,7 +29,7 @@ pub(crate) struct Command {
 const FD_START: i32 = 3;
 
 // TODO: Support more socket types and allow using other socket types, not only TCP
-fn open_socket() -> io::Result<net::SocketAddr> {
+fn open_socket() -> io::Result<(net::SocketAddr, std::os::fd::OwnedFd)> {
     let addr: socket::SockaddrIn6 =
         net::SocketAddrV6::new(net::Ipv6Addr::LOCALHOST, 0, 0, 0).into();
 
@@ -43,14 +43,12 @@ fn open_socket() -> io::Result<net::SocketAddr> {
     socket::bind(fd.as_raw_fd(), &addr)?;
     socket::listen(&fd, socket::Backlog::MAXCONN)?;
 
-    dup2(fd.as_raw_fd(), FD_START as i32)?;
-
     let ss: socket::SockaddrStorage = socket::getsockname(fd.as_raw_fd())?;
 
     let addr = ss.as_sockaddr_in6().expect("It has to be IPv6 address");
     let ipv6 = net::IpAddr::V6(addr.ip());
 
-    Ok(net::SocketAddr::new(ipv6, addr.port()))
+    Ok((net::SocketAddr::new(ipv6, addr.port()), fd))
 }
 
 impl Command {
@@ -61,10 +59,14 @@ impl Command {
 
         tracing::debug!("Starting");
 
-        let addr = open_socket()?;
+        let (addr, fd) = open_socket()?;
 
         match unsafe { fork() }? {
             ForkResult::Child => {
+                // UNSAFE: It is safe call as we know that we do not hold `FD_START` FD anywhere as well as we
+                // know, that this will be passed to new process immediately
+                unsafe { dup2_raw(&fd, FD_START as i32)?; }
+
                 let error = process::Command::new(&self.prog_name)
                     .args(&self.prog_args)
                     // Use systemd-like interface to pass the sockets to the new process
