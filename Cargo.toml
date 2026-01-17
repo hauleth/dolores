@@ -17,7 +17,7 @@ lto = "thin"
 opt-level = 3
 
 [dependencies]
-askama = "0.12.1"
+askama = "0.15.0"
 async-stream = "0.3"
 async-trait = "0.1"
 bincode = "1"

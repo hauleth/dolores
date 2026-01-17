@@ -1,13 +1,9 @@
-use color_eyre::eyre::Result;
-use hyper::{
-    body::Incoming,
-    Request,
-    Response
-};
 use askama::Template;
+use color_eyre::eyre::Result;
+use hyper::{body::Incoming, Request, Response};
 
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Clone, Copy)]
 pub struct Home;
@@ -17,7 +13,7 @@ pub struct Home;
 #[template(path = "hello.html")]
 struct HomeTemplate<'a> {
     req: Request<Incoming>,
-    registry: &'a HashMap<String, crate::service::Service>
+    registry: &'a HashMap<String, crate::service::Service>,
 }
 
 #[async_trait]
@@ -29,7 +25,10 @@ impl super::Handler for Home {
     ) -> Result<Response<String>> {
         let registry = ctx.registry.read().await;
 
-        let view = HomeTemplate { req, registry: &*registry };
+        let view = HomeTemplate {
+            req,
+            registry: &*registry,
+        };
 
         Ok(Response::builder()
             .header("content-type", "text/html")
@@ -61,10 +60,15 @@ mod filters {
         Ok(format!("{val:?}"))
     }
 
-    pub fn domain_url<B>(domain: &str, req: &Request<B>) -> askama::Result<String> {
+    #[askama::filter_fn]
+    pub fn domain_url<B>(
+        domain: &str,
+        _env: &dyn askama::Values,
+        req: &Request<B>,
+    ) -> askama::Result<String> {
         let port: Cow<str> = match req.uri().port_u16() {
             Some(p) if p != 443 => format!(":{p}").into(),
-            _ => "".into()
+            _ => "".into(),
         };
         Ok(format!("https://{domain}{port}"))
     }
