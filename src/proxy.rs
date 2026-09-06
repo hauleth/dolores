@@ -51,3 +51,15 @@ pub trait Proxy: Send + Sync + core::fmt::Debug {
 }
 
 pub type TcpProxy = dyn Proxy<Up = tokio::net::TcpStream, Down = tokio::net::TcpStream>;
+
+#[cfg(test)]
+mod tests {
+    use super::Domain;
+
+    #[test]
+    fn terminating_certificate_covers_service_domain_and_wildcard() {
+        let names: Vec<String> = Domain::from("foo.localhost").into();
+
+        assert_eq!(names, ["foo.localhost", "*.foo.localhost"]);
+    }
+}

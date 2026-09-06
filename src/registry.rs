@@ -157,10 +157,9 @@ impl Registry {
             Register { name, addr, proxy } => {
                 let domain = format!("{}.{}", name, domain);
                 tracing::info!(%name, %domain, "Register");
-                services
-                    .write()
-                    .await
-                    .insert(domain, crate::service::Service::new(&name, addr, proxy));
+
+                let service = crate::service::Service::new(&domain, addr, proxy);
+                services.write().await.insert(domain, service);
             }
             Deregister { name, .. } => {
                 let domain = format!("{}.{}", name, domain);
@@ -180,5 +179,37 @@ impl Drop for Registry {
         let path = addr.as_pathname().unwrap();
 
         std::fs::remove_file(path).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Command, Registry, RegistryStore};
+    use crate::proxy::Type;
+    use std::sync::Arc;
+    use tokio::net::UnixDatagram;
+    use tokio::sync::RwLock;
+
+    #[tokio::test]
+    async fn registration_uses_the_complete_service_domain() {
+        let services: RegistryStore = Arc::new(RwLock::new(Default::default()));
+        let socket = UnixDatagram::unbound().unwrap();
+
+        Registry::handle_command(
+            services.clone(),
+            Command::Register {
+                name: "foo".into(),
+                addr: "127.0.0.1:8080".parse().unwrap(),
+                proxy: Type::Terminating,
+            },
+            &socket,
+            std::path::Path::new("/tmp/unused"),
+            "localhost",
+        )
+        .await
+        .unwrap();
+
+        let services = services.read().await;
+        assert_eq!(services["foo.localhost"].domain, "foo.localhost");
     }
 }
