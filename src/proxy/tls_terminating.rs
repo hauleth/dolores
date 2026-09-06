@@ -103,7 +103,7 @@ async fn copy(
         Ok(len) => {
             let data = std::str::from_utf8(&buf[..len]);
             tracing::trace!(?data, "Received");
-            out.write(&buf[..len]).await?;
+            out.write_all(&buf[..len]).await?;
 
             Ok(false)
         }
@@ -121,5 +121,51 @@ async fn copy(
 impl std::fmt::Debug for TlsTerminating {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         f.write_str("TlsTerminating")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::copy;
+    use std::io;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+    use tokio::io::AsyncWrite;
+
+    struct PartialWriter {
+        data: Vec<u8>,
+        maximum_write_size: usize,
+    }
+
+    impl AsyncWrite for PartialWriter {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            let len = buf.len().min(self.maximum_write_size);
+            self.data.extend_from_slice(&buf[..len]);
+            Poll::Ready(Ok(len))
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn copy_writes_all_bytes_after_a_partial_write() {
+        let input = b"complete message";
+        let mut output = PartialWriter {
+            data: Vec::new(),
+            maximum_write_size: 3,
+        };
+
+        assert!(!copy(Ok(input.len()), input, &mut output).await.unwrap());
+        assert_eq!(output.data, input);
     }
 }
