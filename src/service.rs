@@ -12,12 +12,17 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn new(domain: &str, addr: net::SocketAddr, proxy: crate::proxy::Type) -> Self {
-        Service {
+    pub fn new(
+        domain: &str,
+        addr: net::SocketAddr,
+        proxy: crate::proxy::Type,
+        authority: Option<&crate::proxy::CertificateAuthority>,
+    ) -> Result<Self, rcgen::Error> {
+        Ok(Service {
             domain: domain.into(),
             addr,
-            proxy: proxy.build(domain),
-        }
+            proxy: proxy.build(domain, authority)?,
+        })
     }
 }
 

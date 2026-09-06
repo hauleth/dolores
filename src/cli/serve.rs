@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use color_eyre::eyre::{Result, WrapErr};
+use color_eyre::eyre::{eyre, Result, WrapErr};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::rustls;
 
@@ -15,11 +15,11 @@ pub(crate) struct Command {
     #[arg(short, long, default_value = "0.0.0.0:443")]
     listen: std::net::SocketAddr,
 
-    /// Path to the PEM encoded Certificate Authority key
+    /// Path to the PEM-encoded Certificate Authority certificate
     #[arg(long, requires("ca_key"))]
     ca_cert: Option<std::path::PathBuf>,
 
-    /// Path to the PEM encoded Certificate Authority private certificate
+    /// Path to the PEM-encoded Certificate Authority private key
     #[arg(long, requires("ca_cert"))]
     ca_key: Option<std::path::PathBuf>,
 }
@@ -38,22 +38,55 @@ impl Command {
         result
     }
 
+    fn certificate_authority(&self) -> Result<Option<Arc<crate::proxy::CertificateAuthority>>> {
+        match (&self.ca_cert, &self.ca_key) {
+            (None, None) => Ok(None),
+            (Some(certificate_path), Some(private_key_path)) => {
+                let certificate =
+                    std::fs::read_to_string(certificate_path).wrap_err_with(|| {
+                        format!(
+                            "cannot read certificate authority certificate from {}",
+                            certificate_path.display()
+                        )
+                    })?;
+                let private_key =
+                    std::fs::read_to_string(private_key_path).wrap_err_with(|| {
+                        format!(
+                            "cannot read certificate authority private key from {}",
+                            private_key_path.display()
+                        )
+                    })?;
+                let authority =
+                    crate::proxy::CertificateAuthority::from_pem(&certificate, &private_key)
+                        .wrap_err("cannot load certificate authority")?;
+
+                Ok(Some(Arc::new(authority)))
+            }
+            _ => Err(eyre!("--ca-cert and --ca-key must be used together")),
+        }
+    }
+
     async fn serve(&self, path: &std::path::Path) -> Result<()> {
+        let certificate_authority = self.certificate_authority()?;
         let listener = TcpListener::bind(self.listen).await?;
-        let registry = crate::registry::Registry::open(path, &self.domain)?;
+        let registry =
+            crate::registry::Registry::open(path, &self.domain, certificate_authority.clone())?;
 
-        // Use self signed certificate to make the `rustls` happy (it is not really used right
-        // now). In future it may be used for https://localhost or other pages to show list of the
-        // currently registered apps, metrics, etc.
-        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-        let certs = vec![cert.cert.der().clone()];
-        let pk_der: rustls::pki_types::PrivatePkcs8KeyDer = cert.signing_key.serialize_der().into();
-        let priv_key = pk_der.into();
+        let config = match certificate_authority.as_deref() {
+            Some(authority) => authority
+                .server_config("localhost")
+                .wrap_err("cannot create dashboard certificate")?,
+            None => {
+                let certificate = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])?;
+                let certificates = vec![certificate.cert.der().clone()];
+                let private_key: rustls::pki_types::PrivatePkcs8KeyDer =
+                    certificate.signing_key.serialize_der().into();
 
-        let config = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(certs, priv_key)
-            .expect("Bad certificate/key");
+                rustls::ServerConfig::builder()
+                    .with_no_client_auth()
+                    .with_single_cert(certificates, private_key.into())?
+            }
+        };
 
         let config = Arc::new(config);
 
@@ -153,7 +186,7 @@ async fn handle_request(
 
 #[cfg(test)]
 mod tests {
-    use super::handle_request;
+    use super::{handle_request, Command};
     use crate::proxy::Type;
     use crate::registry::RegistryStore;
     use crate::service::Service;
@@ -197,6 +230,33 @@ mod tests {
         output
     }
 
+    #[test]
+    fn loads_configured_certificate_authority() {
+        let mut params = rcgen::CertificateParams::new(Vec::<String>::new()).unwrap();
+        params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        params.key_usages = vec![rcgen::KeyUsagePurpose::KeyCertSign];
+        let signing_key = rcgen::KeyPair::generate().unwrap();
+        let certificate = params.self_signed(&signing_key).unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("dolores-ca-{:x}", rand::random::<u64>()));
+        let certificate_path = directory.with_extension("crt");
+        let private_key_path = directory.with_extension("key");
+        std::fs::write(&certificate_path, certificate.pem()).unwrap();
+        std::fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
+
+        let command = Command {
+            domain: "localhost".into(),
+            listen: "127.0.0.1:443".parse().unwrap(),
+            ca_cert: Some(certificate_path.clone()),
+            ca_key: Some(private_key_path.clone()),
+        };
+
+        assert!(command.certificate_authority().unwrap().is_some());
+
+        std::fs::remove_file(certificate_path).unwrap();
+        std::fs::remove_file(private_key_path).unwrap();
+    }
+
     #[tokio::test]
     async fn returns_backend_connection_errors_with_request_context() {
         let unavailable = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -206,7 +266,7 @@ mod tests {
         let services: RegistryStore = Arc::new(RwLock::new(Default::default()));
         services.write().await.insert(
             "foo.localhost".to_owned(),
-            Service::new("foo.localhost", backend_addr, Type::Passthrough),
+            Service::new("foo.localhost", backend_addr, Type::Passthrough, None).unwrap(),
         );
 
         let config = server_config();

@@ -5,7 +5,7 @@ use std::sync::Arc;
 mod tls_terminating;
 mod transparent;
 
-pub use tls_terminating::TlsTerminating;
+pub use tls_terminating::{CertificateAuthority, TlsTerminating};
 pub use transparent::Transparent;
 
 #[derive(
@@ -17,10 +17,19 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn build<'a>(self, domain: impl Into<Domain<'a>>) -> Arc<TcpProxy> {
-        match self {
-            Type::Passthrough => Arc::new(Transparent),
-            Type::Terminating => Arc::new(TlsTerminating::self_signed(domain.into())),
+    pub fn build<'a>(
+        self,
+        domain: impl Into<Domain<'a>>,
+        authority: Option<&CertificateAuthority>,
+    ) -> Result<Arc<TcpProxy>, rcgen::Error> {
+        let domain = domain.into();
+
+        match (self, authority) {
+            (Type::Passthrough, _) => Ok(Arc::new(Transparent)),
+            (Type::Terminating, Some(authority)) => {
+                Ok(Arc::new(TlsTerminating::from_authority(domain, authority)?))
+            }
+            (Type::Terminating, None) => Ok(Arc::new(TlsTerminating::self_signed(domain))),
         }
     }
 }

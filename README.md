@@ -15,6 +15,15 @@ separate applications:
 sudo dolores serve
 ```
 
+To sign automatic service certificates with a local Certificate Authority,
+generate one and pass both PEM files to the server. Install the certificate in
+your browser or system trust store.
+
+```sh
+dolores gen cert --cert dolores.crt --key dolores.key
+sudo dolores serve --ca-cert dolores.crt --ca-key dolores.key
+```
+
 Now, as **unprivileged user** we can run:
 
 ```sh
@@ -48,8 +57,8 @@ Now you should be able to visit your application on <https://foo.localhost>.
 - [x] Passthrough proxy
 - [x] TLS terminating proxy
 - [ ] Socket activation on macOS and systemd-enabled Linux distributions
-- [ ] On-the-fly generation of TLS certificates (partially supported, only
-  self-signed certs are supported for now)
+- [x] On-the-fly generation of TLS certificates (self-signed or signed by a
+  configured Certificate Authority)
 - [ ] Registration of external ports
 - [ ] Built-in ACME server for passthrough services
 - [ ] Create page presenting all registered applications

@@ -91,11 +91,16 @@ pub type RegistryStore = Arc<RwLock<HashMap<String, crate::service::Service>>>;
 pub struct Registry {
     domain: String,
     socket: UnixDatagram,
+    certificate_authority: Option<Arc<crate::proxy::CertificateAuthority>>,
     pub services: RegistryStore,
 }
 
 impl Registry {
-    pub fn open<P: AsRef<Path>>(path: P, domain: &str) -> io::Result<Self> {
+    pub fn open<P: AsRef<Path>>(
+        path: P,
+        domain: &str,
+        certificate_authority: Option<Arc<crate::proxy::CertificateAuthority>>,
+    ) -> io::Result<Self> {
         let socket = UnixDatagram::bind(&path)?;
         let perms = Permissions::from_mode(0o777);
         std::fs::set_permissions(&path, perms)?;
@@ -103,6 +108,7 @@ impl Registry {
         Ok(Registry {
             domain: domain.into(),
             socket,
+            certificate_authority,
             services: Arc::new(Default::default()),
         })
     }
@@ -118,6 +124,7 @@ impl Registry {
             &self.socket,
             from.as_pathname().unwrap(),
             &self.domain,
+            self.certificate_authority.as_deref(),
         )
         .await
     }
@@ -128,6 +135,7 @@ impl Registry {
         sock: &UnixDatagram,
         to: &std::path::Path,
         domain: &str,
+        certificate_authority: Option<&crate::proxy::CertificateAuthority>,
     ) -> std::io::Result<()> {
         use Command::*;
 
@@ -157,8 +165,9 @@ impl Registry {
             Register { name, addr, proxy } => {
                 let domain = format!("{}.{}", name, domain);
                 tracing::info!(%name, %domain, "Register");
-
-                let service = crate::service::Service::new(&domain, addr, proxy);
+                let service =
+                    crate::service::Service::new(&domain, addr, proxy, certificate_authority)
+                        .map_err(io::Error::other)?;
                 services.write().await.insert(domain, service);
             }
             Deregister { name, .. } => {
@@ -205,6 +214,7 @@ mod tests {
             &socket,
             std::path::Path::new("/tmp/unused"),
             "localhost",
+            None,
         )
         .await
         .unwrap();
