@@ -16,7 +16,6 @@ use tokio_rustls::{
 };
 
 use std::sync::Arc;
-use std::collections::HashMap;
 
 use crate::registry::RegistryStore;
 
@@ -25,11 +24,6 @@ mod handlers;
 #[async_trait]
 trait Handler: Send + Sync {
     async fn handle(self: Arc<Self>, req: Request<Incoming>, ctx: Context) -> Result<Response<String>>;
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct Data {
-    registry: HashMap<String, crate::service::Service>
 }
 
 #[derive(Clone)]
