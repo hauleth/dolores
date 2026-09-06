@@ -1,9 +1,9 @@
 use color_eyre::eyre::Result;
 
+mod gen;
 mod run;
 mod serve;
 mod status;
-mod gen;
 
 #[derive(clap::Parser, Debug)]
 #[command(version, author, about)]
@@ -25,12 +25,20 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self { clap::Parser::parse() }
+    pub fn new() -> Self {
+        clap::Parser::parse()
+    }
 
     pub fn run(self) -> Result<()> {
         tracing::debug!(?self);
 
         self.command.run(&self.socket_path)
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

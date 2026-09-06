@@ -1,19 +1,12 @@
 use color_eyre::eyre::Result;
+use hyper::service::service_fn;
+use hyper::{body::Incoming, Request, Response};
 use hyper_util::{
     rt::{TokioExecutor, TokioIo},
     server::conn::auto::Builder as Http,
 };
-use hyper::service::service_fn;
-use hyper::{
-    body::Incoming,
-    Request,
-    Response,
-};
 
-use tokio_rustls::{
-    TlsAcceptor,
-    rustls,
-};
+use tokio_rustls::{rustls, TlsAcceptor};
 
 use std::sync::Arc;
 
@@ -23,7 +16,11 @@ mod handlers;
 
 #[async_trait]
 trait Handler: Send + Sync {
-    async fn handle(self: Arc<Self>, req: Request<Incoming>, ctx: Context) -> Result<Response<String>>;
+    async fn handle(
+        self: Arc<Self>,
+        req: Request<Incoming>,
+        ctx: Context,
+    ) -> Result<Response<String>>;
 }
 
 #[derive(Clone)]
@@ -43,9 +40,15 @@ impl Server {
         let mut router = matchit::Router::<Arc<dyn Handler>>::new();
 
         router.insert("/", Arc::new(handlers::Home)).unwrap();
-        router.insert("/health", Arc::new(handlers::Health)).unwrap();
+        router
+            .insert("/health", Arc::new(handlers::Health))
+            .unwrap();
 
-        Server { acceptor, registry, router: Arc::new(router) }
+        Server {
+            acceptor,
+            registry,
+            router: Arc::new(router),
+        }
     }
 
     pub async fn handle(&self, stream: tokio::net::TcpStream) -> std::io::Result<()> {
@@ -84,7 +87,8 @@ fn add_host(mut req: Request<Incoming>) -> Request<Incoming> {
     let mut parts = uri.clone().into_parts();
     // We know that we are handling HTTPS connection
     parts.scheme = Some(hyper::http::uri::Scheme::HTTPS);
-    parts.authority = host.and_then(|host| hyper::http::uri::Authority::from_maybe_shared(host).ok());
+    parts.authority =
+        host.and_then(|host| hyper::http::uri::Authority::from_maybe_shared(host).ok());
 
     *uri = hyper::Uri::from_parts(parts).unwrap();
 

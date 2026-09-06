@@ -21,7 +21,10 @@ impl Service {
     }
 }
 
-pub fn parse_handshake(connection: &mut rustls::ServerConnection, mut data: &[u8]) -> Option<String> {
+pub fn parse_handshake(
+    connection: &mut rustls::ServerConnection,
+    mut data: &[u8],
+) -> Option<String> {
     connection.read_tls(&mut data).ok()?;
     let _ = connection.process_new_packets();
     connection.server_name().and_then(|sni| {

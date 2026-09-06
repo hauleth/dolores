@@ -2,10 +2,7 @@ use std::io;
 use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio_rustls::{
-    rustls,
-    TlsAcceptor
-};
+use tokio_rustls::{rustls, TlsAcceptor};
 
 /// TLS terminating proxy
 ///
@@ -45,7 +42,10 @@ impl TlsTerminating {
     //    Self::build(certs, priv_key)
     //}
 
-    fn build(certs: Vec<rustls::pki_types::CertificateDer<'static>>, priv_key: rustls::pki_types::PrivateKeyDer<'static>) -> Self {
+    fn build(
+        certs: Vec<rustls::pki_types::CertificateDer<'static>>,
+        priv_key: rustls::pki_types::PrivateKeyDer<'static>,
+    ) -> Self {
         let config = tokio_rustls::rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(certs, priv_key)

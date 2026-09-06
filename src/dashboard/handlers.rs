@@ -27,7 +27,7 @@ impl super::Handler for Home {
 
         let view = HomeTemplate {
             req,
-            registry: &*registry,
+            registry: &registry,
         };
 
         Ok(Response::builder()

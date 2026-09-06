@@ -64,8 +64,7 @@ impl Client {
             self.socket.recv(&mut buf),
         )
         .await??;
-        String::from_utf8(buf[..len].into())
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        String::from_utf8(buf[..len].into()).map_err(io::Error::other)
     }
 }
 
@@ -138,7 +137,7 @@ impl Registry {
                 match name {
                     Some(ref name) => {
                         let services = services.read().await;
-                        let service = services.get(&*name);
+                        let service = services.get(name);
                         sock.send_to(
                             format!("ok {:?}", service.map(|s| &s.domain)).as_bytes(),
                             to,

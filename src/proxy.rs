@@ -9,7 +9,7 @@ pub use tls_terminating::TlsTerminating;
 pub use transparent::Transparent;
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Hash, serde::Serialize, serde::Deserialize, clap::ValueEnum
+    Debug, Clone, Copy, PartialEq, Hash, serde::Serialize, serde::Deserialize, clap::ValueEnum,
 )]
 pub enum Type {
     Passthrough,

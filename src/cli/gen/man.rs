@@ -44,5 +44,5 @@ fn print_manpages(dir: &Path, app: &clap::Command) -> Result<()> {
         Ok(())
     }
 
-    print(dir, &app)
+    print(dir, app)
 }

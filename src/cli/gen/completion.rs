@@ -43,11 +43,10 @@ impl Command {
                 Ok(())
             }
             None => {
-                let shells =
-                    Shell::value_variants()
-                    .into_iter()
+                let shells = Shell::value_variants()
+                    .iter()
                     .map(|v| v.to_possible_value().unwrap().get_name().to_owned())
-                    .collect::<Vec<_>>()
+                    .collect::<Box<[_]>>()
                     .join(", ");
 
                 eprintdoc! {"

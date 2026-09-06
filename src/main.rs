@@ -11,7 +11,11 @@ fn main() -> eyre::Result<()> {
     let app = dolores::cli::App::new();
 
     tracing_subscriber::fmt::fmt()
-        .with_max_level(if app.debug { LevelFilter::DEBUG } else { LevelFilter::INFO })
+        .with_max_level(if app.debug {
+            LevelFilter::DEBUG
+        } else {
+            LevelFilter::INFO
+        })
         .with_file(true)
         .with_line_number(true)
         .init();

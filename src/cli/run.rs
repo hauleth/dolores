@@ -1,7 +1,7 @@
 use std::io;
 use std::net;
-use std::os::unix::process::CommandExt;
 use std::os::fd::AsRawFd;
+use std::os::unix::process::CommandExt;
 use std::process;
 
 use color_eyre::eyre::Result;
@@ -65,7 +65,9 @@ impl Command {
             ForkResult::Child => {
                 // UNSAFE: It is safe call as we know that we do not hold `FD_START` FD anywhere as well as we
                 // know, that this will be passed to new process immediately
-                unsafe { dup2_raw(&fd, FD_START as i32)?; }
+                unsafe {
+                    dup2_raw(&fd, FD_START)?;
+                }
 
                 let error = process::Command::new(&self.prog_name)
                     .args(&self.prog_args)

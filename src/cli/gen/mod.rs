@@ -8,7 +8,7 @@ mod man;
 #[derive(clap::Args, Debug)]
 pub(crate) struct Command {
     #[command(subcommand)]
-    command: Generator
+    command: Generator,
 }
 
 #[derive(clap::Subcommand, Debug)]
